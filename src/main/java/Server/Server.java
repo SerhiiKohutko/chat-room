@@ -56,41 +56,8 @@ public final class Server {
 
             out = new PrintWriter(socket.getOutputStream(), true);
 
-            //TODO
-            // ALL IFS MUST BE MOVED TO THE VALIDATION METHOD
-
-            if (username == null) {
-                out.println("USERNAME_NULL");
-                out.close();
-                throw new Exception("Username cannot be null");
-            }
-
-            if (isNameServerReserved(username)) {
-                out.println("USERNAME_RESERVED");
-                out.close();
-                throw new Exception("Username cannot be used because it's reserved by server-side");
-            }
-
-            if (isNameTaken(username)) {
-                out.println("USERNAME_TAKEN");
-                out.close();
-                throw new Exception("Username is already taken");
-            }
-
-            if (isUsernameBanned(username)) {
-                out.println("USERNAME_BANNED");
-                out.close();
-                throw new Exception("Username is already banned");
-            }
-
-            if (isUserIpInBannedList(socket)){
-                out.println("USER_IP_IS_BANNED");
-                out.close();
-                throw new Exception("Username is already banned");
-            }
-
-            //------------------------------------------------------------------------------//
-
+            userConnectionValidation(out, username, socket);
+            
             this.username = username;
             connection = socket;
             connection.setSoTimeout(100);
@@ -385,6 +352,38 @@ public final class Server {
         String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
         System.out.println("[" + timestamp + "] " + message);
         logListener.logAccept("[" + timestamp + "] " + message);
+    }
+
+    private void userConnectionValidation(PrintWriter out, String username, Socket connection) throws Exception {
+        if (username == null) {
+            out.println("USERNAME_NULL");
+            out.close();
+            throw new Exception("Username cannot be null");
+        }
+
+        if (isNameServerReserved(username)) {
+            out.println("USERNAME_RESERVED");
+            out.close();
+            throw new Exception("Username cannot be used because it's reserved by server-side");
+        }
+
+        if (isNameTaken(username)) {
+            out.println("USERNAME_TAKEN");
+            out.close();
+            throw new Exception("Username is already taken");
+        }
+
+        if (isUsernameBanned(username)) {
+            out.println("USERNAME_BANNED");
+            out.close();
+            throw new Exception("Username is already banned");
+        }
+
+        if (isUserIpInBannedList(connection)){
+            out.println("USER_IP_IS_BANNED");
+            out.close();
+            throw new Exception("Username is already banned");
+        }
     }
 
     private boolean isNameServerReserved(String username) {
