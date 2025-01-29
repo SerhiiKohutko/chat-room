@@ -20,12 +20,13 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-//TODO
-//testing annotations refactor
 
 public final class Server {
 
@@ -40,8 +41,6 @@ public final class Server {
     private ServerSTATUS status;
     private final LogListener logListener;
     private final ClientListChangeListener clientListChangeListener;
-    private final HashSet<String> usernames = new HashSet<>();
-    private final CopyOnWriteArrayList<ClientHandler> clients = new CopyOnWriteArrayList<>();
     private final ServerSocket serverSocket;
     private volatile boolean running = true;
 
@@ -57,7 +56,7 @@ public final class Server {
             out = new PrintWriter(socket.getOutputStream(), true);
 
             userConnectionValidation(out, username, socket);
-            
+
             this.username = username;
             connection = socket;
             connection.setSoTimeout(100);
@@ -96,16 +95,9 @@ public final class Server {
         public PrintWriter getWriter(){
             return out;
         }
-        //export to Server.Server class
         public void removeClient(ClientHandler currClient) {
-            synchronized (clients) {
-                clients.remove(currClient);
                 clientsMap.remove(currClient.username);
                 clientListChangeListener.onClientListChange(clientsMap);
-            }
-            synchronized (usernames) {
-                usernames.remove(username);
-            }
 
             if (status.equals(ServerSTATUS.CLOSED)) {
                 out.println("_SERVER_SERVICE_CLOSED_");
@@ -126,14 +118,9 @@ public final class Server {
 
         }
         private void addClient(String username, ClientHandler currClient) {
-            synchronized (clients) {
-                clients.add(currClient);
                 clientsMap.put(username, currClient);
                 clientListChangeListener.onClientListChange(clientsMap);
-            }
-            synchronized (usernames) {
-                usernames.add(username);
-            }
+
 
             writeMessageToAll(username + " has joined the room", currClient);
             clientConnectedServerSide(connection);
@@ -309,30 +296,30 @@ public final class Server {
         String timeStamp = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date());
         message = "[" + timeStamp + "] " + "ADMIN " + " : " + message;
         log(message);
-        synchronized (clients) {
-            for (ClientHandler client : clients) {
-                client.getWriter().println(message);
-            }
+        for (String key : clientsMap.keySet()){
+            clientsMap.get(key).getWriter().println(message);
         }
     }
 
     private void closeAllConnections() {
-        for (ClientHandler currClient : clients) {
+
+        for (String key : clientsMap.keySet()) {
+            ClientHandler currClient = clientsMap.get(key);
             currClient.removeClient(currClient);
-            System.out.println(currClient.getConnection().isClosed());
             currClient.shutdown();
             log("Closed connection for client: " + currClient.getConnection().getInetAddress());
         }
+
     }
     private void writeMessageToAll(String message, ClientHandler currClient) {
-        synchronized (clients) {
-            for (ClientHandler client : clients) {
-                if (client == currClient) {
-                    continue;
-                }
-                client.getWriter().println(message);
+
+        for (String key : clientsMap.keySet()){
+            if (clientsMap.get(key) == currClient){
+                continue;
             }
+            clientsMap.get(key).getWriter().println(message);
         }
+
     }
 
     private void clientConnectedClientSide(PrintWriter pw) {
@@ -390,7 +377,7 @@ public final class Server {
         return Arrays.stream(ServerReservedNames.values()).map(Enum::toString).anyMatch(s -> s.equals(username));
     }
     public boolean isNameTaken(String username) {
-        return usernames.contains(username);
+        return clientsMap.containsKey(username);
     }
     private boolean isUsernameBanned(String username) {
         return bannedNames.contains(username);
