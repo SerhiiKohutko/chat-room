@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/22" xmlns:fx="http://javafx.com/fxml/1" fx:controller="Server.ServerController">
+   <children>
+      <Button fx:id="stopButtonServer" layoutX="221.0" layoutY="320.0" mnemonicParsing="false" onAction="#stopServer" prefHeight="25.0" prefWidth="158.0" text="Stop" />
+      <TextArea fx:id="textAreaServer" editable="false" layoutX="107.0" layoutY="58.0" prefHeight="200.0" prefWidth="395.0" />
+      <TextField fx:id="serverTextInput" layoutX="109.0" layoutY="277.0" prefHeight="25.0" prefWidth="386.0" promptText="Server.Server Message" />
+      <Button fx:id="showConnectedClientsButton" layoutX="230.0" layoutY="22.0" mnemonicParsing="false" text="Show Connected Clients" />
+      <Button fx:id="bannedNamesButton" layoutX="14.0" layoutY="22.0" mnemonicParsing="false" text="Banned Names" />
+      <Button fx:id="bannedIpsButton" layoutX="511.0" layoutY="22.0" mnemonicParsing="false" text="Banned Ips" />
+   </children>
+</AnchorPane>
