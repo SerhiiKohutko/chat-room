@@ -1,4 +1,4 @@
-package DBTesting;
+package DBUsage;
 
 import lombok.Getter;
 import org.hibernate.SessionFactory;

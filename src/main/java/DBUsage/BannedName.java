@@ -1,4 +1,4 @@
-package DBTesting;
+package DBUsage;
 
 import jakarta.persistence.*;
 import lombok.Data;

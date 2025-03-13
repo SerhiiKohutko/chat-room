@@ -1,6 +1,6 @@
 package Server;
 
-import DBTesting.HibernateUtility;
+import DBUsage.HibernateUtility;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;

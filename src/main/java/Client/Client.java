@@ -13,14 +13,11 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 
-
 public class Client {
     private Socket connection;
     private BufferedReader br;
     private PrintWriter pw;
     private ClientController guiController;
-
-    public Client() {}
 
     public void start(String host, int port, String username, ClientController guiController) throws Exception {
         this.guiController = guiController;
@@ -32,21 +29,23 @@ public class Client {
             pw.println(username);
 
             String response = br.readLine();
-            switch(response) {
-                case "USERNAME_NULL" -> throw new Exception("USERNAME_NULL");
-                case "USERNAME_TAKEN" -> throw new Exception("USERNAME_TAKEN");
-                case "USERNAME_RESERVED" -> throw new Exception("USERNAME_RESERVED");
-                case "USERNAME_BANNED" -> throw new Exception("USERNAME_BANNED");
-                case "USER_IP_IS_BANNED" -> throw new Exception("USER_IP_IS_BANNED");
-                default -> System.out.println("Success\nConnected to " + host + ":" + port);
-            }
+            checkServerResponse(response, host, port);
 
-            Thread readThread = getReadThread();
-            readThread.start();
-
+            getReadThread().start();
         } catch (Exception e) {
             close();
             throw new Exception(e.getMessage());
+        }
+    }
+
+    private void checkServerResponse(String response, String host, int port) throws Exception {
+        switch(response) {
+            case "USERNAME_NULL" -> throw new Exception("USERNAME_NULL");
+            case "USERNAME_TAKEN" -> throw new Exception("USERNAME_TAKEN");
+            case "USERNAME_RESERVED" -> throw new Exception("USERNAME_RESERVED");
+            case "USERNAME_BANNED" -> throw new Exception("USERNAME_BANNED");
+            case "USER_IP_IS_BANNED" -> throw new Exception("USER_IP_IS_BANNED");
+            default -> System.out.println("Success\nConnected to " + host + ":" + port);
         }
     }
 
@@ -55,17 +54,10 @@ public class Client {
             try {
                 String serverMessage;
                 while ((serverMessage = br.readLine()) != null) {
-                    if(serverMessage.equals("_SERVER_SERVICE_CLOSED_")) {
-                        throw new ServerClosedException();
-                    }
-                    if(serverMessage.equals("_SERVER_SERVICE_KICKED_")){
-                        throw new KickedByServerException();
-                    }
-                    if (serverMessage.equals("_SERVER_SERVICE_BAN_BY_NAME")) {
-                        throw new BannedFromServerByNameException();
-                    }
-                    if (serverMessage.equals("_SERVER_SERVICE_BAN_BY_IP")) {
-                        throw new BannedFromServerByIpException();
+                    switch (serverMessage) {
+                        case "_SERVER_SERVICE_CLOSED_" -> throw new ServerClosedException();
+                        case "_SERVER_SERVICE_KICKED_" -> throw new KickedByServerException();
+                        case "_SERVER_SERVICE_BAN_BY_NAME", "_SERVER_SERVICE_BAN_BY_IP" -> throw new BannedFromServerByIpException();
                     }
 
                     readMessage(serverMessage);

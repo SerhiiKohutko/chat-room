@@ -1,12 +1,13 @@
 package Server;
 
-import DBTesting.BannedIp;
-import DBTesting.BannedName;
-import DBTesting.HibernateUtility;
+import DBUsage.BannedIp;
+import DBUsage.BannedName;
+import DBUsage.HibernateUtility;
 import Server.Enums.ServerReservedNames;
 import Server.Enums.ServerSTATUS;
 import Server.Listeners.ClientListChangeListener;
 import Server.Listeners.LogListener;
+import lombok.Getter;
 import org.hibernate.HibernateError;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
@@ -30,13 +31,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class Server {
 
-    @Testing
     private final ConcurrentHashMap<String, ClientHandler> clientsMap = new ConcurrentHashMap<>();
-    @Testing
     private final CopyOnWriteArrayList<String> bannedNames = new CopyOnWriteArrayList<>();
-    @Testing
     private final CopyOnWriteArrayList<String> bannedIps = new CopyOnWriteArrayList<>();
-
 
     private ServerSTATUS status;
     private final LogListener logListener;
@@ -44,91 +41,56 @@ public final class Server {
     private final ServerSocket serverSocket;
     private volatile boolean running = true;
 
-    public class ClientHandler implements Runnable {
-        private final BufferedReader in;
-        private final PrintWriter out;
-        private final String username;
-        private final Socket connection;
-        private volatile boolean closed = false;
+    public Server(int port, LogListener logListener, ClientListChangeListener clientListChangeListener) throws IOException {
+        serverSocket = new ServerSocket(port);
+        this.logListener = logListener;
+        this.clientListChangeListener = clientListChangeListener;
+        initializeLists();
+        clientListChangeListener.onBannedNamesListChange(bannedNames);
+        clientListChangeListener.onBannedIpsListChange(bannedIps);
+    }
 
-        public ClientHandler(Socket socket, String username) throws Exception {
+    public void start(){
+        log("Server.Server started");
+        status = ServerSTATUS.OPEN;
 
-            out = new PrintWriter(socket.getOutputStream(), true);
-
-            userConnectionValidation(out, username, socket);
-
-            this.username = username;
-            connection = socket;
-            connection.setSoTimeout(100);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            addClient(username, this);
-        }
-
-        @Override
-        public void run() {
+        while(running){
             try {
-                while (!closed) {
-                    String message;
-                    try {
-                        if ((message = in.readLine()) == null) {
-                            break;
-                        }
-
-                        log("Received from " + username + ": " + message);
-                        String timeStamp = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date());
-                        writeMessageToAll("[" + timeStamp + "] " + username + " : " + message, this);
-                    }catch (SocketTimeoutException ignored) {
-                        System.out.println("Socket timed out");
-                    }catch (IOException e) {
-                        break;
-                    }
-                }
-            } finally {
-                System.out.println("Closing connection");
-                removeClient(this);
+                Socket newClientSocket = serverSocket.accept();
+                String clientUsername;
+                BufferedReader in = new BufferedReader(new InputStreamReader(newClientSocket.getInputStream()));
+                clientUsername = in.readLine();
+                new Thread(new ClientHandler(newClientSocket, clientUsername)).start();
+            }catch (Exception e) {
+                System.out.println(e.getMessage());
             }
         }
+    }
 
-        public Socket getConnection() {
-            return connection;
-        }
-        public PrintWriter getWriter(){
-            return out;
-        }
-        public void removeClient(ClientHandler currClient) {
-                clientsMap.remove(currClient.username);
-                clientListChangeListener.onClientListChange(clientsMap);
-
-            if (status.equals(ServerSTATUS.CLOSED)) {
-                out.println("_SERVER_SERVICE_CLOSED_");
+    public void stop(){
+        running = false;
+        status = ServerSTATUS.CLOSED;
+        try {
+            closeAllConnections();
+            System.out.println("All connections closed.");
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
             }
-
-            try{
-                if (in != null) {
-                    in.close();
-                }
-                if (out != null) {
-                    out.close();
-                }
-                writeMessageToAll(username + " has left the room", currClient);
-                clientRemovedServerSide(connection);
-            } catch (IOException e) {
-                log("Error while closing connection" + e.getMessage());
-            }
-
+            System.out.println("Server.Server stopped.");
+        } catch (IOException e) {
+            System.out.println("Error while stopping server: " + e.getMessage());
         }
-        private void addClient(String username, ClientHandler currClient) {
-                clientsMap.put(username, currClient);
-                clientListChangeListener.onClientListChange(clientsMap);
+    }
 
+    private void closeAllConnections() {
 
-            writeMessageToAll(username + " has joined the room", currClient);
-            clientConnectedServerSide(connection);
-            clientConnectedClientSide(out);
+        for (String key : clientsMap.keySet()) {
+            ClientHandler currClient = clientsMap.get(key);
+            currClient.removeClient(currClient);
+            currClient.shutdown();
+            log("Closed connection for client: " + currClient.getConnection().getInetAddress());
         }
-        public void shutdown(){
-            closed = true;
-        }
+
     }
 
     public void kickClient(String username) {
@@ -170,15 +132,6 @@ public final class Server {
             removeBannedNameFromDb(clientInfo);
             clientListChangeListener.onBannedNamesListChange(bannedNames);
         }
-    }
-
-    public Server(int port, LogListener logListener, ClientListChangeListener clientListChangeListener) throws IOException {
-        serverSocket = new ServerSocket(port);
-        this.logListener = logListener;
-        this.clientListChangeListener = clientListChangeListener;
-        initializeLists();
-        clientListChangeListener.onBannedNamesListChange(bannedNames);
-        clientListChangeListener.onBannedIpsListChange(bannedIps);
     }
 
     //DB SECTION
@@ -242,7 +195,6 @@ public final class Server {
         }
     }
 
-
     private void addBannedIpToDb(String ip){
         Transaction tx = null;
         try(Session session = HibernateUtility.getSessionFactory().openSession()){
@@ -258,36 +210,14 @@ public final class Server {
             }
         }
     }
-//////
 
-    public void start(){
-        log("Server.Server started");
-        status = ServerSTATUS.OPEN;
+    private void writeMessageToAll(String message, ClientHandler currClient) {
 
-        while(running){
-            try {
-                Socket newClientSocket = serverSocket.accept();
-                String clientUsername;
-                BufferedReader in = new BufferedReader(new InputStreamReader(newClientSocket.getInputStream()));
-                clientUsername = in.readLine();
-                new Thread(new ClientHandler(newClientSocket, clientUsername)).start();
-            }catch (Exception e) {
-                System.out.println(e.getMessage());
+        for (String key : clientsMap.keySet()){
+            if (clientsMap.get(key) == currClient){
+                continue;
             }
-        }
-    }
-    public void stop(){
-        running = false;
-        status = ServerSTATUS.CLOSED;
-        try {
-            closeAllConnections();
-            System.out.println("All connections closed.");
-            if (serverSocket != null && !serverSocket.isClosed()) {
-                serverSocket.close();
-            }
-            System.out.println("Server.Server stopped.");
-        } catch (IOException e) {
-            System.out.println("Error while stopping server: " + e.getMessage());
+            clientsMap.get(key).getWriter().println(message);
         }
 
     }
@@ -299,27 +229,6 @@ public final class Server {
         for (String key : clientsMap.keySet()){
             clientsMap.get(key).getWriter().println(message);
         }
-    }
-
-    private void closeAllConnections() {
-
-        for (String key : clientsMap.keySet()) {
-            ClientHandler currClient = clientsMap.get(key);
-            currClient.removeClient(currClient);
-            currClient.shutdown();
-            log("Closed connection for client: " + currClient.getConnection().getInetAddress());
-        }
-
-    }
-    private void writeMessageToAll(String message, ClientHandler currClient) {
-
-        for (String key : clientsMap.keySet()){
-            if (clientsMap.get(key) == currClient){
-                continue;
-            }
-            clientsMap.get(key).getWriter().println(message);
-        }
-
     }
 
     private void clientConnectedClientSide(PrintWriter pw) {
@@ -389,6 +298,92 @@ public final class Server {
             }
         }
         return false;
+    }
+
+    //Client Handler
+    public class ClientHandler implements Runnable {
+        private final BufferedReader in;
+        private final PrintWriter out;
+        private final String username;
+        @Getter
+        private final Socket connection;
+        private volatile boolean closed = false;
+
+        public ClientHandler(Socket socket, String username) throws Exception {
+
+            out = new PrintWriter(socket.getOutputStream(), true);
+
+            userConnectionValidation(out, username, socket);
+
+            this.username = username;
+            connection = socket;
+            connection.setSoTimeout(100);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            addClient(username, this);
+        }
+
+        @Override
+        public void run() {
+            try {
+                while (!closed) {
+                    String message;
+                    try {
+                        if ((message = in.readLine()) == null) {
+                            break;
+                        }
+
+                        log("Received from " + username + ": " + message);
+                        String timeStamp = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss").format(new Date());
+                        writeMessageToAll("[" + timeStamp + "] " + username + " : " + message, this);
+                    }catch (SocketTimeoutException ignored) {
+                        System.out.println("Socket timed out");
+                    }catch (IOException e) {
+                        break;
+                    }
+                }
+            } finally {
+                System.out.println("Closing connection");
+                removeClient(this);
+            }
+        }
+
+        public PrintWriter getWriter(){
+            return out;
+        }
+        public void removeClient(ClientHandler currClient) {
+            clientsMap.remove(currClient.username);
+            clientListChangeListener.onClientListChange(clientsMap);
+
+            if (status.equals(ServerSTATUS.CLOSED)) {
+                out.println("_SERVER_SERVICE_CLOSED_");
+            }
+
+            try{
+                if (in != null) {
+                    in.close();
+                }
+                if (out != null) {
+                    out.close();
+                }
+                writeMessageToAll(username + " has left the room", currClient);
+                clientRemovedServerSide(connection);
+            } catch (IOException e) {
+                log("Error while closing connection" + e.getMessage());
+            }
+
+        }
+        private void addClient(String username, ClientHandler currClient) {
+            clientsMap.put(username, currClient);
+            clientListChangeListener.onClientListChange(clientsMap);
+
+
+            writeMessageToAll(username + " has joined the room", currClient);
+            clientConnectedServerSide(connection);
+            clientConnectedClientSide(out);
+        }
+        public void shutdown(){
+            closed = true;
+        }
     }
 }
 
