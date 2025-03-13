@@ -12,6 +12,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import lombok.Setter;
 
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ public class ServerController {
     private Stage connectedClientsStage;
     private Stage bannedNamesStage;
     private Stage bannedIpsStage;
+    @Setter
     private Stage primaryStage;
 
     public void initialize() {
@@ -56,7 +58,10 @@ public class ServerController {
             Platform.exit();
         }
 
+        configureUI();
+    }
 
+    private void configureUI(){
         serverTextInput.setOnAction(event -> sendServerMessage());
         showConnectedClientsButton.setOnAction(event -> showConnectedClients());
         bannedNamesButton.setOnAction(event -> showBannedUsernames());
@@ -65,7 +70,6 @@ public class ServerController {
 
 
     private void showBannedUsernames(){
-
         if (bannedNamesStage != null && bannedNamesStage.isShowing()) {
             bannedNamesStage.toFront();
             return;
@@ -182,12 +186,11 @@ public class ServerController {
             private final Label nameLabel = new Label();
 
             {
-                // Настройка интерфейса элемента
+
                 content.setSpacing(10);
                 content.setAlignment(Pos.CENTER_LEFT);
                 content.getChildren().addAll(nameLabel, kickButton, banNameButton, banIpButton);
 
-                // Обработчик для кнопки "Kick"
                 kickButton.setOnAction(event -> {
                     String clientInfo = getItem();
                     if (clientInfo != null) {
@@ -195,7 +198,6 @@ public class ServerController {
                     }
                 });
 
-                // Обработчик для кнопки "Ban"
                 banNameButton.setOnAction(event -> {
                     String clientInfo = getItem();
                     if (clientInfo != null) {
@@ -203,7 +205,6 @@ public class ServerController {
                     }
                 });
 
-                // Обработчик для кнопки "Ban"
                 banIpButton.setOnAction(event -> {
                     String clientInfo = getItem();
                     if (clientInfo != null) {
@@ -232,9 +233,11 @@ public class ServerController {
         connectedClientsStage.setScene(scene);
         connectedClientsStage.show();
     }
+
     public void writeMessage(String message) {
         Platform.runLater(() -> textAreaServer.appendText(message+"\n\n"));
     }
+
     private void sendServerMessage() {
         String message = serverTextInput.getText().trim();
         if (message.isEmpty()) {
@@ -254,19 +257,17 @@ public class ServerController {
     private void kickClient(String client) {
         serverStarter.kickClientFromServer(client);
     }
+
     private void banClientByName(String client) {
         serverStarter.banClientFromServer(client, false);
     }
+
     private void banClientByIp(String username) {
         serverStarter.banClientFromServer(username, true);
     }
 
     private void unbanClient(String client, boolean byIp) {
         serverStarter.unbanClientFromServer(client, byIp);
-    }
-
-    public void setPrimaryStage(Stage primaryStage) {
-        this.primaryStage = primaryStage;
     }
 
     public void updateClientsList(Map<String, Server.ClientHandler> clients) {
@@ -292,6 +293,7 @@ public class ServerController {
             bannedIpsList.addAll(ips);
         });
     }
+
     private void updateBannedNames(List<String> names){
         Platform.runLater(() -> {
             bannedNamesList.clear();

@@ -140,10 +140,8 @@ public final class Server {
         try(Session session = HibernateUtility.getSessionFactory().openSession()){
             tx = session.beginTransaction();
 
-            List<BannedName> resNames = new ArrayList<BannedName>();
-            List<BannedIp> resIps = new ArrayList<>();
-            resIps.addAll(session.createQuery("from BannedIp").list());
-            resNames.addAll(session.createQuery("from BannedName").list());
+            List<BannedIp> resIps = new ArrayList<>(session.createQuery("from BannedIp").list());
+            List<BannedName> resNames = new ArrayList<BannedName>(session.createQuery("from BannedName").list());
 
             bannedNames.addAll(resNames.stream()
                     .map(BannedName::toString)
@@ -154,7 +152,6 @@ public final class Server {
                     .toList());
 
             tx.commit();
-
         }catch (HibernateError e){
             if (tx != null) {
                 tx.rollback();
@@ -169,7 +166,7 @@ public final class Server {
 
             BannedName newBannedName = new BannedName();
             newBannedName.setBannedName(name);
-            session.save(newBannedName);
+            session.persist(newBannedName);
             tx.commit();
         } catch (HibernateException e){
             if (tx != null){
@@ -202,7 +199,7 @@ public final class Server {
 
             BannedIp newBannedIp = new BannedIp();
             newBannedIp.setIp(ip);
-            session.save(newBannedIp);
+            session.persist(newBannedIp);
             tx.commit();
         } catch (HibernateException e){
             if (tx != null){
